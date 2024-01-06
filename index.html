@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>When is C Sunday?</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;1,9..40,700&family=Fraunces:ital,opsz@0,9..144;1,9..144&display=swap" rel="stylesheet">
+		<script src="https://cdn.jsdelivr.net/npm/js-confetti@latest/dist/js-confetti.browser.js"></script>
+
+<style>
+html, body {
+	height: 100%;
+}
+
+body {
+	background-color: #fff8ee;
+	text-align: center;
+	font-family: sans-serif;
+
+	margin: 0;
+	padding: 5em 8px 8px 8px;
+	box-sizing: border-box;
+
+	display: flex;
+	flex-direction: column;
+
+	opacity: 1;
+}
+
+.content {
+	flex: 1 0 auto;
+}
+
+.footer {
+	flex-shrink: 0;
+}
+
+.footer a {
+	font-family: 'DM Sans', sans-serif;
+	font-size: 1.5em;
+	font-style: italic;
+	text-decoration: none;
+	color: black;
+	opacity: 0.15;
+}
+
+.medium {
+	font-size: 1.5em;
+	font-family: 'Fraunces', serif;
+	font-style: italic;
+}
+
+.large {
+	font-size: 2.5em;
+	font-family: 'Fraunces', serif;
+}
+
+#info {
+	font-family: 'DM Sans', sans-serif;
+	font-size: 0.8em;
+	color: #7f7c77;
+	max-width: 16em;
+	margin: 16em auto 0 auto;
+}
+
+.days, .date {
+	transition: opacity 2s;
+}
+
+.invisible {
+	opacity: 0;
+}
+</style>
+	</head>
+	<body>
+		<div class='content'>
+			<h1 class="medium">C Sunday is in</h1>
+			<h2 class="large invisible days">(loading..)</h2>
+			<h3 class="medium">on</h3>
+			<h2 class="large date invisible"></h2>
+		</div>
+		<div class='footer'>
+			<div id="info">C Sunday is the Sunday before the Early May bank holiday.</div>
+			<br>
+			<a href='https://dwb.no'>dan</a>
+		</div>
+	</body>
+	<script>
+
+function getFirstMondayOfMay(year) {
+	const d = new Date()
+	d.setFullYear(year)
+	d.setMonth(4)
+	d.setDate(1)
+	d.setHours(0,0,0,0)
+	while (d.getDay() !== 1) {
+		d.setDate(d.getDate() + 1)
+	}
+	return d
+}
+
+async function queryEarlyMayBankHolidayAPI(year) {
+	const res = await fetch('https://www.gov.uk/bank-holidays.json', { signal: AbortSignal.timeout(3000) })
+	const data = await res.json()
+	const bankhols = data['england-and-wales']['events']
+	for (bankhol of bankhols) {
+		const date = new Date(bankhol['date'])
+		date.setHours(0,0,0,0)
+		const correctTitle = bankhol['title'].includes('Early May bank holiday')
+		const correctYear = date.getFullYear() === year
+		if (correctTitle && correctYear) {
+			return date
+		}
+	}
+}
+
+
+function localCSunday(year) {
+	const date = getFirstMondayOfMay(year)
+	date.setDate(date.getDate()-1)
+	return date
+}
+
+async function apiCSunday(year) {
+	const date = await queryEarlyMayBankHolidayAPI(year)
+	date.setDate(date.getDate()-1)
+	return date
+}
+
+async function getCSunday() {
+	const today = new Date()
+	today.setHours(0,0,0,0)
+	let year = new Date().getFullYear()
+	let date, usedAPI = false
+
+	try {
+		date = await apiCSunday(year)
+		if (date < today) {
+			date = await apiCSunday(year+1)
+		}
+		usedAPI = true
+	} catch (e) {
+		console.log('API failed! Using fallback.')
+		date = localCSunday(year)
+		if (date < today) {
+			date = localCSunday(year+1)
+		}
+	}
+
+	return {date, usedAPI}
+}
+
+getCSunday().then(showDate)
+
+function showDate({date, usedAPI}) { 
+	const today = new Date()
+	today.setHours(0,0,0,0)
+	const cSunday = date
+	cSunday.setHours(0,0,0,0)
+
+	const days = Math.ceil((cSunday - today) / (1000 * 60 * 60 * 24))
+	const options = {
+		weekday: 'long',
+		month: 'long',
+		day: 'numeric',
+	};
+	const isToday = days === 0
+	const daysText = `${days} ${days === 1 ? 'day' : 'days'}`
+	const dateText = cSunday.toLocaleDateString('en-GB', options) + (usedAPI ? '' :' (⚠️)') + (isToday ? ' (today!)' : '')
+
+	document.querySelectorAll('.days').forEach(el => el.textContent = daysText)
+	document.querySelectorAll('.date').forEach(el => el.textContent = dateText)
+	document.querySelectorAll('.invisible').forEach(el => el.classList.remove('invisible'))
+
+	if (!usedAPI) {
+		document.getElementById('info').textContent = '(⚠️) C Sunday is the Sunday before the Early May bank holiday. We couldn\'t reach the official source of bank holidays, so this is our best guess.'
+	}
+
+	if (isToday) {
+		const jsConfetti = new JSConfetti()
+		jsConfetti.addConfetti({
+			emojis: ['🍺', '🍷', '🍾'],
+			emojiSize: 150,
+		})
+	}
+
+}
+	</script>
+</html>
